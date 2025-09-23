@@ -1,116 +1,128 @@
 const express = require('express');
-const router = express.Router();
-const { ddbDocClient, GetCommand, PutCommand, DeleteCommand } = require('../config/aws');
-const nodemailer = require('nodemailer');
-const crypto = require('crypto');
+     const router = express.Router();
+     const { ddbDocClient, GetCommand, PutCommand, DeleteCommand, ScanCommand } = require('../config/aws');
+     const nodemailer = require('nodemailer');
+     const crypto = require('crypto');
 
-router.post('/', async (req, res) => {
-  const { email, name } = req.body;
+     // GET all product subscriptions (for testing or admin use)
+     router.get('/', async (req, res) => {
+       try {
+         const params = { TableName: process.env.PRODUCT_SUBSCRIPTIONS_TABLE };
+         const data = await ddbDocClient.send(new ScanCommand(params));
+         res.json(data.Items);
+       } catch (err) {
+         console.error('Get product subscriptions error:', err.message);
+         res.status(500).json({ error: 'Failed to fetch subscriptions' });
+       }
+     });
 
-  if (!email || !name) {
-    return res.status(400).json({ error: 'Email and name are required' });
-  }
+     router.post('/', async (req, res) => {
+       const { email, name } = req.body;
 
-  try {
-    // Check if email already exists
-    const getParams = {
-      TableName: process.env.PRODUCT_SUBSCRIPTIONS_TABLE,
-      Key: { email }
-    };
-    const existingSubscription = await ddbDocClient.send(new GetCommand(getParams));
+       if (!email || !name) {
+         return res.status(400).json({ error: 'Email and name are required' });
+       }
 
-    if (existingSubscription.Item) {
-      return res.status(409).json({ error: 'This email is already subscribed. Try a different email or contact us to unsubscribe.' });
-    }
+       try {
+         // Check if email already exists
+         const getParams = {
+           TableName: process.env.PRODUCT_SUBSCRIPTIONS_TABLE,
+           Key: { email }
+         };
+         const existingSubscription = await ddbDocClient.send(new GetCommand(getParams));
 
-    // Create new subscription
-    const putParams = {
-      TableName: process.env.PRODUCT_SUBSCRIPTIONS_TABLE,
-      Item: {
-        email,
-        name,
-        subscriptionDate: new Date().toISOString()
-      }
-    };
-    await ddbDocClient.send(new PutCommand(putParams));
+         if (existingSubscription.Item) {
+           return res.status(409).json({ error: 'This email is already subscribed. Try a different email or contact us to unsubscribe.' });
+         }
 
-    // Generate unsubscribe token
-    const unsubscribeToken = crypto.createHash('sha256').update(email + process.env.SECRET_KEY).digest('hex');
-    const unsubscribeUrl = `${process.env.COMPANY_WEBSITE}/unsubscribe?email=${encodeURIComponent(email)}&token=${unsubscribeToken}`;
+         // Create new subscription
+         const putParams = {
+           TableName: process.env.PRODUCT_SUBSCRIPTIONS_TABLE,
+           Item: {
+             email,
+             name,
+             subscriptionDate: new Date().toISOString()
+           }
+         };
+         await ddbDocClient.send(new PutCommand(putParams));
 
-    // Send email
-    const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: process.env.SMTP_PORT,
-      secure: false,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS
-      }
-    });
+         // Generate unsubscribe token
+         const unsubscribeToken = crypto.createHash('sha256').update(email + process.env.SECRET_KEY).digest('hex');
+         const unsubscribeUrl = `${process.env.COMPANY_WEBSITE}/unsubscribe?email=${encodeURIComponent(email)}&token=${unsubscribeToken}`;
 
-    const mailOptions = {
-      from: `"Grace Mobility Team" <${process.env.SMTP_USER}>`,
-      to: email,
-      subject: '🎉 Thanks for subscribing – You’ll be the first to know!',
-      html: `
-        <h2>Hi ${name},</h2>
-        <p>Thank you for showing interest in Grace Mobility!</p>
-        <p>You’re now on our early access list, which means you’ll be the first to get updates about new launches, special offers, and product announcements.</p>
-        <p>We’re excited to keep you in the loop. Stay tuned—something amazing is on the way!</p>
-        <p>If you ever change your mind, you can <a href="${unsubscribeUrl}">unsubscribe</a> anytime with just one click.</p>
-        <p>Cheers,<br>The Grace Mobility Team</p>
-        <p><a href="${process.env.COMPANY_WEBSITE}">${process.env.COMPANY_WEBSITE}</a></p>
-      `
-    };
+         // Send email
+         const transporter = nodemailer.createTransport({
+           host: process.env.SMTP_HOST,
+           port: process.env.SMTP_PORT,
+           secure: false,
+           auth: {
+             user: process.env.SMTP_USER,
+             pass: process.env.SMTP_PASS
+           }
+         });
 
-    await transporter.sendMail(mailOptions);
-    console.log(`Email sent to ${email}`);
+         const mailOptions = {
+           from: `"Grace Mobility Team" <${process.env.SMTP_USER}>`,
+           to: email,
+           subject: '🎉 Thanks for subscribing – You’ll be the first to know!',
+           html: `
+             <h2>Hi ${name},</h2>
+             <p>Thank you for showing interest in Grace Mobility!</p>
+             <p>You’re now on our early access list, which means you’ll be the first to get updates about new launches, special offers, and product announcements.</p>
+             <p>We’re excited to keep you in the loop. Stay tuned—something amazing is on the way!</p>
+             <p>If you ever change your mind, you can <a href="${unsubscribeUrl}">unsubscribe</a> anytime with just one click.</p>
+             <p>Cheers,<br>The Grace Mobility Team</p>
+             <p><a href="${process.env.COMPANY_WEBSITE}">${process.env.COMPANY_WEBSITE}</a></p>
+           `
+         };
 
-    res.status(201).json({ message: 'Subscribed successfully' });
-  } catch (err) {
-    console.error('Product subscription error:', err.message, err.stack);
-    res.status(500).json({ error: 'Failed to subscribe' });
-  }
-});
+         await transporter.sendMail(mailOptions);
+         console.log(`Email sent to ${email}`);
 
-router.delete('/', async (req, res) => {
-  const { email, token } = req.query;
+         res.status(201).json({ message: 'Subscribed successfully' });
+       } catch (err) {
+         console.error('Product subscription error:', err.message, err.stack);
+         res.status(500).json({ error: 'Failed to subscribe' });
+       }
+     });
 
-  if (!email || !token) {
-    return res.status(400).json({ error: 'Email and token are required' });
-  }
+     router.delete('/', async (req, res) => {
+       const { email, token } = req.query;
 
-  try {
-    // Verify token
-    const expectedToken = crypto.createHash('sha256').update(email + process.env.SECRET_KEY).digest('hex');
-    if (token !== expectedToken) {
-      return res.status(401).json({ error: 'Invalid unsubscribe token' });
-    }
+       if (!email || !token) {
+         return res.status(400).json({ error: 'Email and token are required' });
+       }
 
-    // Check if subscription exists
-    const getParams = {
-      TableName: process.env.PRODUCT_SUBSCRIPTIONS_TABLE,
-      Key: { email }
-    };
-    const existingSubscription = await ddbDocClient.send(new GetCommand(getParams));
+       try {
+         // Verify token
+         const expectedToken = crypto.createHash('sha256').update(email + process.env.SECRET_KEY).digest('hex');
+         if (token !== expectedToken) {
+           return res.status(401).json({ error: 'Invalid unsubscribe token' });
+         }
 
-    if (!existingSubscription.Item) {
-      return res.status(404).json({ error: 'Subscription not found' });
-    }
+         // Check if subscription exists
+         const getParams = {
+           TableName: process.env.PRODUCT_SUBSCRIPTIONS_TABLE,
+           Key: { email }
+         };
+         const existingSubscription = await ddbDocClient.send(new GetCommand(getParams));
 
-    // Delete subscription
-    const deleteParams = {
-      TableName: process.env.PRODUCT_SUBSCRIPTIONS_TABLE,
-      Key: { email }
-    };
-    await ddbDocClient.send(new DeleteCommand(deleteParams));
+         if (!existingSubscription.Item) {
+           return res.status(404).json({ error: 'Subscription not found' });
+         }
 
-    res.status(200).json({ message: 'Unsubscribed successfully' });
-  } catch (err) {
-    console.error('Unsubscribe error:', err.message, err.stack);
-    res.status(500).json({ error: 'Failed to unsubscribe' });
-  }
-});
+         // Delete subscription
+         const deleteParams = {
+           TableName: process.env.PRODUCT_SUBSCRIPTIONS_TABLE,
+           Key: { email }
+         };
+         await ddbDocClient.send(new DeleteCommand(deleteParams));
 
-module.exports = router;
+         res.status(200).json({ message: 'Unsubscribed successfully' });
+       } catch (err) {
+         console.error('Unsubscribe error:', err.message, err.stack);
+         res.status(500).json({ error: 'Failed to unsubscribe' });
+       }
+     });
+
+     module.exports = router;
