@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { ddbDocClient, GetCommand, PutCommand } = require('../config/aws');
+const { ddbDocClient, GetCommand, PutCommand, ScanCommand } = require('../config/aws');
 
 router.post('/', async (req, res) => {
   const { email, name } = req.body;
@@ -36,6 +36,18 @@ router.post('/', async (req, res) => {
   } catch (err) {
     console.error('Subscription error:', err);
     res.status(500).json({ error: 'Failed to subscribe' });
+  }
+});
+router.get('/', async (req, res) => {
+  try {
+    const params = {
+      TableName: process.env.SUBSCRIPTIONS_TABLE
+    };
+    const data = await ddbDocClient.send(new ScanCommand(params));
+    res.json(data.Items);
+  } catch (err) {
+    console.error('Get subscriptions error:', err);
+    res.status(500).json({ error: 'Failed to retrieve subscriptions' });
   }
 });
 

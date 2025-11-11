@@ -62,16 +62,16 @@ const express = require('express');
          });
 
          const mailOptions = {
-           from: `"Grace Mobility Team" <${process.env.SMTP_USER}>`,
+           from: `"Grace.ev Team" <${process.env.SMTP_USER}>`,
            to: email,
            subject: '🎉 Thanks for subscribing – You’ll be the first to know!',
            html: `
              <h2>Hi ${name},</h2>
-             <p>Thank you for showing interest in Grace Mobility!</p>
+             <p>Thank you for showing interest in Grace.ev!</p>
              <p>You’re now on our early access list, which means you’ll be the first to get updates about new launches, special offers, and product announcements.</p>
              <p>We’re excited to keep you in the loop. Stay tuned—something amazing is on the way!</p>
              <p>If you ever change your mind, you can <a href="${unsubscribeUrl}">unsubscribe</a> anytime with just one click.</p>
-             <p>Cheers,<br>The Grace Mobility Team</p>
+             <p>Cheers,<br>The Grace.ev Team</p>
              <p><a href="${process.env.COMPANY_WEBSITE}">${process.env.COMPANY_WEBSITE}</a></p>
            `
          };

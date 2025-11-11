@@ -10,12 +10,13 @@ const app = express();
 // Configure CORS to allow multiple origins
 const allowedOrigins = [
   'http://localhost:5173', // Local development
-  process.env.COMPANY_WEBSITE // Live site (https://www.gracemobility.co.in)
-].filter(Boolean); // Remove undefined values
+  'http://13.204.187.229', // EC2 IP
+  'https://gracemobility.in',
+  process.env.COMPANY_WEBSITE // Live site[](https://gracemobility.co.in)
+].filter(Boolean);
 
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (e.g., Postman) or from allowed origins
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
@@ -23,7 +24,6 @@ app.use(cors({
     }
   }
 }));
-
 app.use(express.json());
 app.use('/api/posts', postsRouter);
 app.use('/api/users', usersRouter);
